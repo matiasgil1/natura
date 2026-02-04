@@ -1,9 +1,8 @@
 
 import { Product, Client, Sale, Purchase, SaleItem, Movement, Expense, User } from '../types';
 
-// En producción (Vercel), usará la variable definida en el panel. 
-// En desarrollo, usa la URL por defecto.
-const API_URL = (import.meta as any).env?.VITE_API_URL || 'https://script.google.com/macros/s/AKfycbzWLTeXE4RI-ISrAz29d9ID_bh5_Y6C_yJz85aZRECRqsp9qAJ6Oeicr5nU5is5r-PEVg/exec';
+// URL actualizada proporcionada por el usuario
+const API_URL = 'https://script.google.com/macros/s/AKfycbxF9z3QbS71jYxbTifNwPc6sbxC4K7Vrz6fxdibPlZYldNTMYWhUkDXVRMWROx5WROjUQ/exec';
 
 function getValue(obj: any, key: string): any {
   if (!obj) return undefined;
@@ -42,6 +41,46 @@ async function apiCall(action: string, payload: any = {}, isRead: boolean = fals
 export class DataService {
   static async login(usuario: string, password: string): Promise<User> {
     return await apiCall('login', { usuario, password }, true);
+  }
+
+  static async getInitialData() {
+    const data = await apiCall('getInitialData', {}, true);
+    
+    const products = (data.products || []).map((p: any) => ({
+      id: String(getValue(p, 'ID')), nombre: String(getValue(p, 'Nombre')),
+      descripcion: String(getValue(p, 'Descripción') || getValue(p, 'Descripcion')),
+      fotoUrl: String(getValue(p, 'FotoURL')), stockActual: Number(getValue(p, 'StockActual')),
+      precioCostoPromedio: Number(getValue(p, 'PrecioCostoPromedio')), precioVenta: Number(getValue(p, 'PrecioVenta'))
+    }));
+
+    const clients = (data.clients || []).map((c: any) => ({
+      id: String(getValue(c, 'ID')), nombre: String(getValue(c, 'Nombre')),
+      apellido: String(getValue(c, 'Apellido')), telefono: String(getValue(c, 'Telefono')),
+      saldo: Number(getValue(c, 'Saldo'))
+    }));
+
+    const sales = (data.sales || []).map((s: any) => ({
+      id: String(getValue(s, 'ID')), fecha: String(getValue(s, 'Fecha')),
+      clientId: String(getValue(s, 'IDCliente')), clientName: String(getValue(s, 'ClienteNombre')),
+      montoTotal: Number(getValue(s, 'MontoTotal')), montoPagado: Number(getValue(s, 'MontoPagado')),
+      saldoRestante: Number(getValue(s, 'SaldoRestante')), metodoPago: String(getValue(s, 'MetodoPago')),
+      gananciaNeta: Number(getValue(s, 'GananciaNeta')), items: JSON.parse(getValue(s, 'ItemsJSON') || '[]')
+    }));
+
+    const movements = (data.movements || []).map((m: any) => ({
+      id: String(getValue(m, 'ID')), fecha: String(getValue(m, 'Fecha')),
+      clientId: String(getValue(m, 'IDCliente')), clientName: String(getValue(m, 'ClienteNombre')),
+      concepto: String(getValue(m, 'Concepto')), monto: Number(getValue(m, 'Monto')),
+      saldoAnterior: Number(getValue(m, 'SaldoAnterior')), saldoRestante: Number(getValue(m, 'SaldoRestante'))
+    }));
+
+    const expenses = (data.expenses || []).map((e: any) => ({
+      id: String(getValue(e, 'ID')), fecha: String(getValue(e, 'Fecha')),
+      concepto: String(getValue(e, 'Concepto')), monto: Number(getValue(e, 'Monto')),
+      categoria: String(getValue(e, 'Categoria'))
+    }));
+
+    return { products, clients, sales, movements, expenses };
   }
 
   static async getProducts(): Promise<Product[]> {
@@ -108,7 +147,12 @@ export class DataService {
   }
 
   static async updateProduct(id: string, product: Partial<Product>) {
-    return await apiCall('updateRecord', { sheet: 'Inventario', id, data: product });
+    const data: any = {};
+    if (product.nombre) data['Nombre'] = product.nombre;
+    if (product.descripcion) data['Descripción'] = product.descripcion;
+    if (product.fotoUrl) data['FotoURL'] = product.fotoUrl;
+    if (product.precioVenta !== undefined) data['PrecioVenta'] = product.precioVenta;
+    return await apiCall('updateRecord', { sheet: 'Inventario', id, data });
   }
 
   static async deleteProduct(id: string) {
@@ -123,11 +167,12 @@ export class DataService {
 
   static async addClient(client: Omit<Client, 'id' | 'saldo'>) {
     const id = 'C' + Date.now().toString().slice(-6);
-    return await apiCall('saveRecord', { sheet: 'Clientes', data: { ...client, 'ID': id, 'Saldo': 0 } });
+    const data = { 'ID': id, 'Nombre': client.nombre, 'Apellido': client.apellido, 'Telefono': client.telefono, 'Saldo': 0 };
+    return await apiCall('saveRecord', { sheet: 'Clientes', data });
   }
 
   static async registerPurchase(purchaseData: any) {
-    const data = { id: 'B' + Date.now().toString().slice(-6), fecha: new Date().toISOString(), ...purchaseData };
+    const data = { 'ID': 'B' + Date.now().toString().slice(-6), 'Fecha': new Date().toISOString(), 'IDProducto': purchaseData.productId, 'Cantidad': purchaseData.cantidad, 'PrecioCosto': purchaseData.precioCosto, 'Proveedor': purchaseData.proveedor };
     return await apiCall('processPurchase', { purchaseData: data });
   }
 

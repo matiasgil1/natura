@@ -1,5 +1,5 @@
 
-import React, { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Client, Movement } from '../types';
 import { DataService } from '../services/dataService';
 import { Search, User, Phone, FileDown, MessageSquare, AlertCircle, TrendingDown, UserPlus, X, DollarSign, FileText, Printer, ChevronLeft, ChevronRight, History, Download } from 'lucide-react';
@@ -274,6 +274,11 @@ const Clients: React.FC<ClientsProps> = ({ clients, movements, onRefresh }) => {
     });
   };
 
+  const handleWhatsAppMessage = (client: Client) => {
+    const message = encodeURIComponent(`Hola ${client.nombre} ${client.apellido}! 👋 Recordá que tenés un saldo pendiente de ${formatCurrency(client.saldo)}. Podés realizar tu pago por transferencia o en efectivo. ¡Cualquier duda avisame! ✨`);
+    window.open(`https://wa.me/${client.telefono}?text=${message}`, '_blank');
+  };
+
   return (
     <div className="space-y-12 animate-in fade-in duration-500 pb-20">
       <div className="space-y-6">
@@ -320,7 +325,7 @@ const Clients: React.FC<ClientsProps> = ({ clients, movements, onRefresh }) => {
                     <td className="px-8 py-5"><div className="flex items-center gap-3"><div className="w-9 h-9 rounded-xl bg-orange-50 flex items-center justify-center text-[#E07A5F] font-black text-[10px] shadow-sm">{client.nombre[0]}{client.apellido[0]}</div><p className="text-[11px] font-black text-gray-700 uppercase">{client.nombre} {client.apellido}</p></div></td>
                     <td className="px-8 py-5"><span className="text-[10px] font-bold text-gray-400">{client.telefono}</span></td>
                     <td className="px-8 py-5"><span className={`text-[11px] font-black ${client.saldo > 0 ? 'text-red-500' : 'text-green-600'}`}>{formatCurrency(client.saldo)}</span></td>
-                    <td className="px-8 py-5 text-right"><div className="flex justify-end gap-2"><button onClick={() => showCurrentAccount(client)} className="p-2.5 bg-gray-50 text-gray-400 rounded-xl hover:bg-gray-800 hover:text-white transition-all"><Printer size={16} /></button><button onClick={() => handleCollectPayment(client)} className={`p-2.5 rounded-xl transition-all shadow-sm ${client.saldo > 0 ? 'bg-green-50 text-green-600 hover:bg-green-600 hover:text-white' : 'bg-gray-50 text-gray-300 cursor-not-allowed'}`}><DollarSign size={16} /></button><button onClick={() => window.open(`https://wa.me/${client.telefono}`, '_blank')} className="p-2.5 bg-blue-50 text-blue-500 rounded-xl hover:bg-blue-600 hover:text-white transition-all"><MessageSquare size={16} /></button></div></td>
+                    <td className="px-8 py-5 text-right"><div className="flex justify-end gap-2"><button onClick={() => showCurrentAccount(client)} className="p-2.5 bg-gray-50 text-gray-400 rounded-xl hover:bg-gray-800 hover:text-white transition-all"><Printer size={16} /></button><button onClick={() => handleCollectPayment(client)} className={`p-2.5 rounded-xl transition-all shadow-sm ${client.saldo > 0 ? 'bg-green-50 text-green-600 hover:bg-green-600 hover:text-white' : 'bg-gray-50 text-gray-300 cursor-not-allowed'}`}><DollarSign size={16} /></button><button onClick={() => handleWhatsAppMessage(client)} className="p-2.5 bg-blue-50 text-blue-500 rounded-xl hover:bg-blue-600 hover:text-white transition-all"><MessageSquare size={16} /></button></div></td>
                   </tr>))}
               </tbody>
             </table>

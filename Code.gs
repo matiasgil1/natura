@@ -1,16 +1,21 @@
 
 /**
  * NATURA GESTIÓN - API BACKEND (Vercel Ready)
- * Versión: 1.3 - Seguridad y Gastos
+ * Versión: 1.7 - Ultra Fast & Consolidated
  */
 
-const SPREADSHEET_ID = ""; 
+const SPREADSHEET_ID = ""; // Dejar vacío si el script está unido a la hoja
 
 function checkAndInitSheets() {
+  const ss = getSS();
+  if (!ss) return;
+  
+  // FAST PATH: Si ya existe Usuarios, asumimos que el sistema está OK.
+  if (ss.getSheetByName('Usuarios')) return;
+
   const lock = LockService.getScriptLock();
   try {
     lock.waitLock(10000);
-    const ss = getSS();
     const existingSheetNames = ss.getSheets().map(s => s.getName());
     
     const requiredSheets = {
@@ -32,34 +37,37 @@ function checkAndInitSheets() {
                .setFontWeight('bold')
                .setBackground('#F3F4F6');
           sheet.setFrozenRows(1);
-          
-          // Crear usuario por defecto si es la hoja Usuarios
-          if (name === 'Usuarios') {
-            sheet.appendRow(['Carolina', '123', 'admin']);
-          }
-        } catch (e) {
-          if (!e.toString().includes("Ya existe")) throw e;
-        }
+          if (name === 'Usuarios') sheet.appendRow(['Carolina', '123', 'admin']);
+        } catch (e) {}
       }
     });
   } catch (err) {
-    console.error("Error en checkAndInitSheets: " + err.toString());
-    throw err;
+    console.error("Error init: " + err.toString());
   } finally {
-    lock.releaseLock();
+    if (lock.hasLock()) lock.releaseLock();
   }
 }
 
 function doPost(e) {
   try {
-    checkAndInitSheets();
     const request = JSON.parse(e.postData.contents);
     const action = request.action;
     const payload = request.payload || {};
-    let result;
+    
+    // OPTIMIZACIÓN CRÍTICA: Si es lectura o login, NO ejecutamos checkAndInitSheets
+    const isReadOnly = action.startsWith('get') || action === 'login';
+    if (!isReadOnly) {
+      checkAndInitSheets();
+    }
 
+    let result;
     switch (action) {
-      case 'login': result = login(payload.usuario, payload.password); break;
+      case 'login': 
+        result = login(payload.usuario, payload.password); 
+        break;
+      case 'getInitialData': 
+        result = getAllData(); 
+        break;
       case 'getProducts': result = getTableData('Inventario'); break;
       case 'getClients': result = getTableData('Clientes'); break;
       case 'getSales': result = getTableData('Ventas'); break;
@@ -73,7 +81,7 @@ function doPost(e) {
       case 'processPurchase': result = processPurchase(payload.purchaseData); break;
       case 'registerPayment': result = registerPayment(payload.clientId, payload.monto); break;
       default: 
-        throw new Error("La acción '" + action + "' no está definida.");
+        throw new Error("La acción '" + action + "' no está definida en el Backend.");
     }
 
     return ContentService.createTextOutput(JSON.stringify({ success: true, data: result }))
@@ -85,12 +93,20 @@ function doPost(e) {
   }
 }
 
+function getAllData() {
+  return {
+    products: getTableData('Inventario'),
+    clients: getTableData('Clientes'),
+    sales: getTableData('Ventas'),
+    movements: getTableData('Movimientos'),
+    expenses: getTableData('Gastos')
+  };
+}
+
 function login(usuario, password) {
   const users = getTableData('Usuarios');
   const user = users.find(u => u.Usuario === usuario && String(u.Contraseña) === String(password));
-  if (user) {
-    return { usuario: user.Usuario, rol: user.Rol };
-  }
+  if (user) return { usuario: user.Usuario, rol: user.Rol };
   throw new Error("Credenciales inválidas");
 }
 
@@ -98,16 +114,12 @@ function getSS() {
   let ss = null;
   try { ss = SpreadsheetApp.getActiveSpreadsheet(); } catch (e) {}
   if (!ss && SPREADSHEET_ID) { ss = SpreadsheetApp.openById(SPREADSHEET_ID); }
-  if (!ss) throw new Error("Base de datos no encontrada.");
   return ss;
 }
 
-function normalize(str) {
-  return str ? str.toString().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().replace(/\s+/g, "") : "";
-}
-
 function getTableData(sheetName) {
-  const sheet = getSS().getSheetByName(sheetName);
+  const ss = getSS();
+  const sheet = ss.getSheetByName(sheetName);
   if (!sheet || sheet.getLastRow() <= 1) return [];
   const values = sheet.getDataRange().getValues();
   const headers = values.shift();
@@ -118,10 +130,23 @@ function getTableData(sheetName) {
   });
 }
 
+function normalize(str) {
+  return str ? str.toString().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().replace(/\s+/g, "") : "";
+}
+
+function getCaseInsensitiveValue(obj, key) {
+  const lowerKey = key.toLowerCase();
+  const foundKey = Object.keys(obj).find(k => k.toLowerCase() === lowerKey);
+  return foundKey ? obj[foundKey] : undefined;
+}
+
 function saveRecord(sheetName, data) {
   const sheet = getSS().getSheetByName(sheetName);
   const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-  const row = headers.map(h => data[h] !== undefined ? data[h] : "");
+  const row = headers.map(h => {
+    const val = getCaseInsensitiveValue(data, h);
+    return val !== undefined ? val : "";
+  });
   sheet.appendRow(row);
   return true;
 }
@@ -141,9 +166,7 @@ function registerPayment(clientId, monto) {
       const saldoAnterior = Number(cliData[i][colSaldo] || 0);
       const nuevoSaldo = saldoAnterior - monto;
       const clienteNombre = cliData[i][colNombre] + " " + cliData[i][colApellido];
-      
       sheetCli.getRange(i + 1, colSaldo + 1).setValue(nuevoSaldo);
-      
       saveRecord('Movimientos', {
         'ID': 'M' + Date.now().toString().slice(-6),
         'Fecha': new Date().toISOString(),
@@ -173,14 +196,12 @@ function processSale(saleData) {
     'GananciaNeta': saleData.gananciaNeta,
     'ItemsJSON': JSON.stringify(saleData.items)
   });
-
   const ss = getSS();
   const sheetInv = ss.getSheetByName('Inventario');
   const invData = sheetInv.getDataRange().getValues();
   const invHeaders = invData[0].map(normalize);
   const colIdInv = invHeaders.indexOf("id");
   const colStock = invHeaders.indexOf("stockactual");
-  
   saleData.items.forEach(item => {
     for (let i = 1; i < invData.length; i++) {
       if (String(invData[i][colIdInv]) === String(item.productId)) {
@@ -188,20 +209,17 @@ function processSale(saleData) {
       }
     }
   });
-
   if (saleData.saldoRestante > 0) {
     const sheetCli = ss.getSheetByName('Clientes');
     const cliData = sheetCli.getDataRange().getValues();
     const headers = cliData[0].map(normalize);
     const colIdCli = headers.indexOf("id");
     const colSaldo = headers.indexOf("saldo");
-
     for (let i = 1; i < cliData.length; i++) {
       if (String(cliData[i][colIdCli]) === String(saleData.clientId)) {
         const saldoAnterior = Number(cliData[i][colSaldo] || 0);
         const nuevoSaldo = saldoAnterior + Number(saleData.saldoRestante);
         sheetCli.getRange(i + 1, colSaldo + 1).setValue(nuevoSaldo);
-        
         saveRecord('Movimientos', {
           'ID': 'V' + saleData.id.slice(-6),
           'Fecha': saleData.fecha,
@@ -220,19 +238,23 @@ function processSale(saleData) {
 
 function processPurchase(purchaseData) {
   saveRecord('Compras', {
-    'ID': purchaseData.id, 'Fecha': purchaseData.fecha, 'IDProducto': purchaseData.productId,
-    'Cantidad': purchaseData.cantidad, 'PrecioCosto': purchaseData.precioCosto, 'Proveedor': purchaseData.proveedor
+    'ID': purchaseData.ID, 
+    'Fecha': purchaseData.Fecha, 
+    'IDProducto': purchaseData.IDProducto,
+    'Cantidad': purchaseData.Cantidad, 
+    'PrecioCosto': purchaseData.PrecioCosto, 
+    'Proveedor': purchaseData.Proveedor
   });
   const ss = getSS();
   const sheetInv = ss.getSheetByName('Inventario');
   const invData = sheetInv.getDataRange().getValues();
   const h = invData[0].map(normalize);
   for (let i = 1; i < invData.length; i++) {
-    if (String(invData[i][h.indexOf("id")]) === String(purchaseData.productId)) {
+    if (String(invData[i][h.indexOf("id")]) === String(purchaseData.IDProducto)) {
       const s = Number(invData[i][h.indexOf("stockactual")]);
       const c = Number(invData[i][h.indexOf("preciocostopromedio")]);
-      const nP = ((s * c) + (purchaseData.cantidad * purchaseData.precioCosto)) / (s + purchaseData.cantidad);
-      sheetInv.getRange(i + 1, h.indexOf("stockactual") + 1).setValue(s + purchaseData.cantidad);
+      const nP = ((s * c) + (purchaseData.Cantidad * purchaseData.PrecioCosto)) / (s + purchaseData.Cantidad);
+      sheetInv.getRange(i + 1, h.indexOf("stockactual") + 1).setValue(s + purchaseData.Cantidad);
       sheetInv.getRange(i + 1, h.indexOf("preciocostopromedio") + 1).setValue(nP);
     }
   }
@@ -244,11 +266,11 @@ function updateRecord(sheetName, id, data) {
   const values = sheet.getDataRange().getValues();
   const headers = values[0];
   const colId = headers.map(normalize).indexOf("id");
-
   for (let i = 1; i < values.length; i++) {
     if (String(values[i][colId]) === String(id)) {
       Object.keys(data).forEach(key => {
-        const colIdx = headers.indexOf(key);
+        const lowerKey = key.toLowerCase();
+        const colIdx = headers.findIndex(h => h.toLowerCase() === lowerKey);
         if (colIdx > -1) sheet.getRange(i + 1, colIdx + 1).setValue(data[key]);
       });
       return true;

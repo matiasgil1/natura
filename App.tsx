@@ -45,14 +45,10 @@ const App: React.FC = () => {
   const refreshData = async (silent = false) => {
     if (!silent) setIsLoading(true);
     try {
-      const [products, clients, sales, movements, expenses] = await Promise.all([
-        DataService.getProducts(),
-        DataService.getClients(),
-        DataService.getSales(),
-        DataService.getMovements(),
-        DataService.getExpenses()
-      ]);
-      setData({ products, clients, sales, movements, expenses });
+      // OPTIMIZACIÓN: Una sola llamada carga TODO el sistema
+      const initialData = await DataService.getInitialData();
+      setData(initialData);
+      
       if (silent) Toast.fire({ icon: 'success', title: 'Sincronizado' });
     } catch (e: any) {
       console.error("Error cargando datos:", e);
@@ -99,7 +95,7 @@ const App: React.FC = () => {
             </div>
           </div>
           <div>
-            <p className="text-[#E07A5F] text-[9px] font-black uppercase tracking-[0.4em] mb-1">Entrando</p>
+            <p className="text-[#E07A5F] text-[9px] font-black uppercase tracking-[0.4em] mb-1">Iniciando Natura</p>
             <div className="w-24 h-0.5 bg-gray-100 mx-auto rounded-full overflow-hidden">
                <div className="h-full bg-[#E07A5F] animate-[shimmer_2s_infinite]"></div>
             </div>
