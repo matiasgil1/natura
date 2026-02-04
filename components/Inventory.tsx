@@ -158,19 +158,11 @@ const Inventory: React.FC<InventoryProps> = ({ products, onRefresh }) => {
           <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Catálogo de productos Natura</p>
         </div>
         <div className="flex flex-wrap gap-2 w-full sm:w-auto">
-          <input type="file" ref={fileInputRef} onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) {
-                // Lógica de importación CSV ya existente...
-            }
-          }} accept=".csv" className="hidden" />
+          <input type="file" ref={fileInputRef} onChange={(e) => {}} accept=".csv" className="hidden" />
           <button onClick={() => fileInputRef.current?.click()} className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-blue-50 text-blue-600 px-4 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-100 transition-all">
             <Upload size={16} /> IMPORTAR
           </button>
-          <button onClick={() => {
-              Toast.fire({ icon: 'info', title: 'Generando CSV...' });
-              // Lógica exportCSV...
-          }} className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-orange-50 text-[#E07A5F] px-4 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-orange-100 transition-all">
+          <button onClick={() => {}} className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-orange-50 text-[#E07A5F] px-4 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-orange-100 transition-all">
             <Download size={16} /> EXPORTAR
           </button>
           <button onClick={() => { setEditingProduct(null); setSelectedImage(null); setIsModalOpen(true); }} className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-[#4C7031] text-white px-5 py-3 rounded-2xl shadow-xl font-black text-[10px] uppercase tracking-widest hover:brightness-110 active:scale-95 transition-all">
@@ -179,7 +171,6 @@ const Inventory: React.FC<InventoryProps> = ({ products, onRefresh }) => {
         </div>
       </div>
 
-      {/* Grid de Productos */}
       <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-50 overflow-hidden">
         <div className="p-4 border-b border-gray-50 bg-gray-50/10 flex items-center gap-3">
           <Search className="text-gray-300" size={18} />
