@@ -1,0 +1,7 @@
+{
+  "name": "Natura Gestión SPA",
+  "description": "Sistema integral de gestión para revendedoras Natura con inventario, ventas, compras (PPP) y dashboard analítico.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
